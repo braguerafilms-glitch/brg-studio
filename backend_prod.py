@@ -20,7 +20,7 @@ CORS(app, origins=ALLOWED_ORIGINS)
 # API keys via variável de ambiente (nunca hardcoded em produção)
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY", "")
 
-HF_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+HF_URL   = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
 
 # ── Geração de imagem ──
 @app.route("/gerar", methods=["POST"])
