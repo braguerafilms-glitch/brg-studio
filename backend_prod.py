@@ -20,7 +20,7 @@ CORS(app, origins=ALLOWED_ORIGINS)
 # API keys via variável de ambiente (nunca hardcoded em produção)
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY", "")
 
-HF_URL   = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+HF_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
 
 # ── Geração de imagem ──
 @app.route("/gerar", methods=["POST"])
@@ -53,7 +53,56 @@ def gerar():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-# ── Proxy Anthropic ──
+
+# ── Proxy Groq (IA de texto — gratuito) ──
+GROQ_KEY = os.environ.get("GROQ_KEY", "")
+
+@app.route("/ia", methods=["POST"])
+def ia():
+    data = request.json or {}
+    prompt_text = ""
+    for msg in data.get("messages", []):
+        if msg.get("role") == "user":
+            prompt_text = msg.get("content", "")
+            break
+    system_text = data.get("system", "")
+    max_tokens  = data.get("max_tokens", 1000)
+
+    try:
+        groq_payload = {
+            "model": "llama-3.1-8b-instant",
+            "max_tokens": max_tokens,
+            "messages": []
+        }
+        if system_text:
+            groq_payload["messages"].append({"role": "system", "content": system_text})
+        groq_payload["messages"].append({"role": "user", "content": prompt_text})
+
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_KEY}",
+                "Content-Type": "application/json"
+            },
+            json=groq_payload,
+            timeout=60
+        )
+        if not r.ok:
+            return jsonify({"error": r.text}), r.status_code
+
+        groq_data = r.json()
+        text = groq_data["choices"][0]["message"]["content"]
+
+        # Return in Anthropic format so frontend doesn't need changes
+        return jsonify({
+            "content": [{"type": "text", "text": text}],
+            "model": "llama-3.1-8b-instant",
+            "role": "assistant"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ── Health check ──
 @app.route("/ia", methods=["POST"])
 def ia():
     data = request.json or {}
@@ -71,7 +120,7 @@ def ia():
         return jsonify(r.json()), r.status_code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-# ── Health check ──
+
 @app.route("/ping")
 def ping():
     return jsonify({"status": "ok", "service": "BRG Studio API"})
