@@ -2056,7 +2056,7 @@ async function genAI(){
   document.getElementById('ai-txt').textContent='Criando roteiro...';
   const st=document.getElementById('aiSt');st.textContent='';
   try{
-    const res=await fetch('${window._BRG_API||'https://brg-studio-production.up.railway.app'}/ia',{
+    const res=await fetch((window._BRG_API||'http://localhost:5000')+'/ia',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
@@ -2110,7 +2110,7 @@ async function genAISingle(){
   const p=document.getElementById('aiSingle').value.trim();if(!p){toast('Escreva o prompt do slide');return;}
   const btn=document.getElementById('btnAI2');btn.disabled=true;btn.textContent='Gerando...';
   try{
-    const res=await fetch('${window._BRG_API||'https://brg-studio-production.up.railway.app'}/ia',{method:'POST',headers:{'Content-Type':'application/json'},
+    const res=await fetch((window._BRG_API||'http://localhost:5000')+'/ia',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,
         system:`Você é copywriter para carrossel Instagram premium. Retorne APENAS JSON de 1 objeto sem markdown.
 Formato: {"title":"TÍTULO","sub":"overline curto","body":"texto 1-2 linhas","cta":"call to action"}`,
