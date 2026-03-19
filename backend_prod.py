@@ -53,7 +53,24 @@ def gerar():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+# ── Proxy Anthropic ──
+@app.route("/ia", methods=["POST"])
+def ia():
+    data = request.json or {}
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json=data,
+            timeout=60
+        )
+        return jsonify(r.json()), r.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 # ── Health check ──
 @app.route("/ping")
 def ping():
