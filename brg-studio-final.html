@@ -414,7 +414,9 @@ hr.sep{border:none;border-top:1px solid var(--fog);margin:11px 0}
 /* ── MOBILE ── */
 @media (max-width: 768px) {
   #top{grid-template-columns:1fr auto;padding:0 12px;height:44px}
-  .brand-sub,.fmt-group,.top-r .btn-ghost{display:none}
+  .brand-sub,.top-r .btn-ghost{display:none}
+  .fmt-group{margin:0;gap:0}
+  .fmt-pill{padding:5px 10px;font-size:9px;letter-spacing:.04em}
   #shell{flex-direction:column;height:calc(100vh - 44px)}
   #film{display:none}
   #stage{flex:1;padding:10px 12px 6px;min-height:0}
@@ -1010,6 +1012,9 @@ function renderSlide(canvas,s,idx){
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height,sc=W/480;
   ctx.clearRect(0,0,W,H);
+  // Hard clip — nothing can paint outside the canvas
+  ctx.save();
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();
   // BG
   ctx.fillStyle=s.bg||'#0a0a0a';ctx.fillRect(0,0,W,H);
   if(s.img&&imgCache[s.img]?.complete){
@@ -1032,6 +1037,7 @@ function renderSlide(canvas,s,idx){
   if(s.overlay>0){ctx.fillStyle=`rgba(0,0,0,${s.overlay/100})`;ctx.fillRect(0,0,W,H);}
   drawLayout(ctx,W,H,sc,s,idx);
   s.elements.forEach(el=>drawEl(ctx,W,H,sc,el));
+  ctx.restore(); // close clip
 }
 
 function drawLayout(ctx,W,H,sc,s,idx){
@@ -1054,52 +1060,64 @@ function drawLayout(ctx,W,H,sc,s,idx){
   }
   function clearShadow(){ctx.shadowColor='transparent';ctx.shadowBlur=0;}
 
-  // WRAP ENGINE
-  function wrapLines(text,maxW,style){
-    if(!text)return[];ctx.font=style;
-    const words=text.split(' ');const lines=[];let line='';
+  // WRAP ENGINE — texto nunca sai da arte
+  function wrapLines(text, maxW, style){
+    if(!text || maxW <= 0) return [];
+    ctx.font = style;
+    const safeW = Math.max(maxW, 40*sc); // nunca menor que 40px scaled
+    const words = text.split(' ');
+    const lines = []; let line = '';
     for(const w of words){
-      const alone=ctx.measureText(w).width;
-      const sw=alone>maxW?trunc(w,maxW,style):w;
-      const test=line?line+' '+sw:sw;
-      if(ctx.measureText(test).width>maxW&&line){lines.push(line);line=sw;}else line=test;
+      const sw = ctx.measureText(w).width > safeW ? trunc(w, safeW, style) : w;
+      const test = line ? line+' '+sw : sw;
+      if(ctx.measureText(test).width > safeW && line){ lines.push(line); line = sw; }
+      else line = test;
     }
-    if(line)lines.push(line);return lines;
+    if(line) lines.push(line);
+    return lines;
   }
-  function trunc(word,maxW,style){
-    ctx.font=style;let t=word;
-    while(t.length>1&&ctx.measureText(t+'…').width>maxW)t=t.slice(0,-1);
-    return t+'…';
+  function trunc(word, maxW, style){
+    ctx.font = style; let t = word;
+    while(t.length > 1 && ctx.measureText(t+'…').width > maxW) t = t.slice(0,-1);
+    return t.length < word.length ? t+'…' : t;
   }
-  function wt(text,x,y,maxW2,lhm,style){
-    if(!text)return 0;ctx.font=style;
-    ctx.letterSpacing=ls+'px';
-    const lines=wrapLines(text,maxW2,style);
-    const lhpx=(lhm||fs*lh);
-    const sy=y-((lines.length-1)*lhpx)/2;
+  // Clamp maxW to always stay inside canvas with margin
+  function safeMaxW(w){ return Math.min(w, W - 40*sc); }
+
+  function wt(text, x, y, maxW2, lhm, style){
+    if(!text) return 0;
+    ctx.font = style; ctx.letterSpacing = ls+'px';
+    const lines = wrapLines(text, safeMaxW(maxW2), style);
+    const lhpx = lhm || fs*lh;
+    const sy = y - ((lines.length-1)*lhpx)/2;
     applyTextShadow('dark');
-    lines.forEach((l,i)=>ctx.fillText(l,ax(aln),sy+i*lhpx));
-    clearShadow();ctx.letterSpacing='0px';
-    return lines.length*lhpx;
+    lines.forEach((l,i) => ctx.fillText(l, ax(aln), sy+i*lhpx));
+    clearShadow(); ctx.letterSpacing = '0px';
+    return lines.length * lhpx;
   }
-  function wtTop(text,startY,maxW2,lhm,style,al2){
-    if(!text)return startY;ctx.font=style;
-    ctx.letterSpacing=ls+'px';
-    const lines=wrapLines(text,maxW2,style);
-    const lhpx=lhm||fs*lh;const a2=ax(al2||aln);
+  function wtTop(text, startY, maxW2, lhm, style, al2){
+    if(!text) return startY;
+    ctx.font = style; ctx.letterSpacing = ls+'px';
+    const lines = wrapLines(text, safeMaxW(maxW2), style);
+    const lhpx = lhm || fs*lh;
+    const a2 = ax(al2||aln);
     applyTextShadow('dark');
-    lines.forEach((l,i)=>ctx.fillText(l,a2,startY+i*lhpx));
-    clearShadow();ctx.letterSpacing='0px';
-    return startY+lines.length*lhpx;
+    lines.forEach((l,i) => ctx.fillText(l, a2, startY+i*lhpx));
+    clearShadow(); ctx.letterSpacing = '0px';
+    return startY + lines.length*lhpx;
   }
-  function bodyTxt(txt,x,y,maxW2){
-    if(!txt)return;const style=FB(12*sc,300);ctx.font=style;
-    ctx.fillStyle=tc2;ctx.globalAlpha=0.62;ctx.textBaseline='middle';ctx.textAlign=aln;
-    const lines=wrapLines(txt,maxW2||W-76*sc,style);
-    const a2=ax(aln);
+  function bodyTxt(txt, x, y, maxW2){
+    if(!txt) return;
+    const mw = safeMaxW(maxW2 || W-76*sc);
+    const style = FB(12*sc, 300); ctx.font = style;
+    ctx.fillStyle = tc2; ctx.globalAlpha = 0.62;
+    ctx.textBaseline = 'middle'; ctx.textAlign = aln;
+    const lines = wrapLines(txt, mw, style);
+    const a2 = ax(aln); const lhPx = 17*sc;
     applyTextShadow('dark');
-    lines.forEach((l,i)=>ctx.fillText(l,a2,y+i*17*sc));
-    clearShadow();ctx.globalAlpha=1;
+    lines.forEach((l,i) => ctx.fillText(l, a2, y+i*lhPx));
+    clearShadow(); ctx.globalAlpha = 1;
+    return lines.length * lhPx;
   }
   function ctaTxt(txt,x,y){
     if(!txt)return;const style=FB(9.5*sc,500);ctx.font=style;ctx.fillStyle=ac;ctx.globalAlpha=ao;ctx.textBaseline='middle';
